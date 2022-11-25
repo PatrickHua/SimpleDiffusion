@@ -1,1 +1,3 @@
 # SimpleDiffusion
+
+pip install unet
