@@ -9,6 +9,19 @@ def double_conv(in_channels, out_channels):
         nn.ReLU(inplace=True)
     )   
 
+class TimeSiren(nn.Module):
+    def __init__(self, emb_dim: int) -> None:
+        super(TimeSiren, self).__init__()
+
+        self.lin1 = nn.Linear(1, emb_dim, bias=False)
+        self.lin2 = nn.Linear(emb_dim, emb_dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x.view(-1, 1)
+        x = torch.sin(self.lin1(x))
+        x = self.lin2(x)
+        return x
+
 
 class UNet(nn.Module):
 
@@ -20,6 +33,7 @@ class UNet(nn.Module):
         self.dconv_down3 = double_conv(128, 256)
         self.dconv_down4 = double_conv(256, 512)        
         self.dconv_down5 = double_conv(512, 1024)
+        self.timeembed = TimeSiren(1024)
         self.maxpool = nn.MaxPool2d(2)
         self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)        
         self.dconv_up4 = double_conv(512 + 1024, 512)
@@ -30,7 +44,7 @@ class UNet(nn.Module):
         self.conv_last = nn.Conv2d(64, n_class, 1)
         
         
-    def forward(self, x):
+    def forward(self, x, t):
         conv1 = self.dconv_down1(x)
         x = self.maxpool(conv1)
 
@@ -46,8 +60,9 @@ class UNet(nn.Module):
         x = self.dconv_down5(x)
 
         # bottleneck
+        temb = self.timeembed(t).view(t.shape[0], -1, 1, 1)
+        x = x + temb
         
-
         x = self.upsample(x)
         x = torch.cat([x, conv4], dim=1)
 
